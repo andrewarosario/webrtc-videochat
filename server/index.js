@@ -10,33 +10,23 @@ const wsServer = new server({
   httpServer,
 });
 
-let clients = [];
+const peersByCode = {};
 
 wsServer.on('request', request => {
   const connection = request.accept();
-  const id = Math.floor(Math.random() * 100);
-
-  clients.forEach(client => client.connection.send(JSON.stringify({
-    client: id,
-    text: 'I am now connected',
-  })));
-
-  clients.push({ connection, id });
+  const id = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
 
   connection.on('message', message => {
-    clients
-      .filter(client => client.id !== id)
-      .forEach(client => client.connection.send(JSON.stringify({
-        client: id,
-        text: message.utf8Data,
-      })));
-  });
-
-  connection.on('close', () => {
-    clients = clients.filter(client => client.id !== id);
-    clients.forEach(client => client.connection.send(JSON.stringify({
-      client: id,
-      text: 'I disconnected',
-    })));
+    const { code } = JSON.parse(message.utf8Data);
+    if (!peersByCode[code]) {
+      peersByCode[code] = [{ connection, id }];
+    } else if (!peersByCode[code].find(peer => peer.id === id )) {
+      peersByCode[code].push({ connection, id });
+    }
+    
+    const peer = peersByCode[code].find(peer => peer.id !== id)
+    if (peer) {
+      peer.connection.send(message.utf8Data);
+    }
   });
 });
